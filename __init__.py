@@ -3,8 +3,7 @@
 __author__ = ('David Dunn')
 __version__ = '0.1'
 
-import cv2, sys, math
-sys.path.append('../python')
+import cv2, math
 import numpy as np
 import dCamera as dc
 from scipy.interpolate import griddata
