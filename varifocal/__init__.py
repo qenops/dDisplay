@@ -10,7 +10,7 @@ import dDisplay.blobDetectorParameters as blob
 
 class VarifocalDisplay(object):
     ''' An object to control a varifocal display '''
-    def __init__(self,port='/dev/ttyACM0',baud=115200,led=True,camera=0,dist=None,signal=None,ledX=None,ledY=None,bounds=(0,1000,0,1000),minArea=15,maxArea=150,minThreshold=0,maxThreshold=150,thresholdStep=7,minDistance=10):
+    def __init__(self,port='/dev/ttyACM0',baud=115200,led=True,camera=0,dist=None,signal=None,ledX=None,ledY=None,bounds=(0,1000,0,1000),minArea=15,maxArea=150,minThreshold=0,maxThreshold=150,thresholdStep=7,minDistance=10,**kwargs):
         self.currentDepth = 0
         self.goalDepth = 0
         self.lastSignal = 0
