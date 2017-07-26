@@ -14,7 +14,11 @@ class VarifocalDisplay(object):
         self.currentDepth = 0
         self.goalDepth = 0
         self.lastSignal = 0
-        self.arduino = serial.Serial(port, baud)
+        try:
+            self.arduino = serial.Serial(port, baud)
+        except:
+            print('FATAL ERROR: Cannot connect to Adruino => will simulate.')
+            self.adruino = None
         self.epsilon = 15
         dist = (-1, 0, 50,250,1000,1500) if dist is None else dist
         self.solenoids = True if signal is None else False
@@ -52,7 +56,7 @@ class VarifocalDisplay(object):
     # @param focus - focus depth in cm.
     # @param speed - speed of refocus in diopters/second. [speed <= 0] => maximum speed.
     def setFocus(self,focus):
-        print "Setting display depth to %s"%focus
+        print("Setting display depth to %s"%focus)
         self.goalDepth = focus 
     def updateState(self,focus=None):
         '''read current state and send signal to control the display for the desired depth '''
@@ -64,10 +68,10 @@ class VarifocalDisplay(object):
             #if self.epsilon < 15:
             #    self.epislon = 15
             if self.currentDepth < (self.goalDepth - self.epsilon):
-                print '+%s'%(self.goalDepth-self.currentDepth)
+                print('+%s'%(self.goalDepth-self.currentDepth))
                 self.increaseDepth(self.goalDepth-self.currentDepth)
             elif self.currentDepth > (self.goalDepth + self.epsilon):
-                print '-%s'%(self.currentDepth-self.goalDepth)
+                print('-%s'%(self.currentDepth-self.goalDepth))
                 self.decreaseDepth(self.currentDepth-self.goalDepth)
             #else:
             #    self.arduino.write('%s/n'%self.closeSignal)
@@ -146,10 +150,10 @@ class VarifocalDisplay(object):
                 capture = not capture
                 if capture:
                     video = cv2.VideoWriter('temp.avi',-1,self.ledCam.fps,self.ledCam.resolution)
-                    print "RECORDING"
+                    print("RECORDING")
                 else:
                     video.release()
-                    print "END RECORDING"
+                    print("END RECORDING")
             elif ch == 1048695:         # w
                 self.increaseDepth(50)
                 count = 0
@@ -163,10 +167,10 @@ class VarifocalDisplay(object):
                 self.decreaseDepth(500)  
                 count = 0
             elif ch == 1048688:         # p
-                print self.currentDepth, coord[0]
+                print(self.currentDepth, coord[0])
         dc.cv2CloseWindow('tracking')
         dc.cv2CloseWindow('Blob Detector')
-        print 'Noise floor = %s'%noise
+        print('Noise floor = %s'%noise)
         #self.ledCam.close()
     def getData(self,loops):
         data = np.zeros((loops,5),np.float)
@@ -290,7 +294,7 @@ def tuneLED(ledCam=None,bounds=(0,9000,0,9000)):
         if ch & 0xFF == 27:         # escape
             break
     dc.cv2CloseWindow('tracking')
-    print "minArea=%s,maxArea=%s,minThreshold=%s,maxThreshold=%s,bounds=%s"%(minArea,maxArea,minThreshold,maxThreshold,bounds)
+    print("minArea=%s,maxArea=%s,minThreshold=%s,maxThreshold=%s,bounds=%s"%(minArea,maxArea,minThreshold,maxThreshold,bounds))
     return minArea,maxArea,minThreshold,maxThreshold
 
 def stressTestMembrane(camera, port, frequency=600):
@@ -319,7 +323,7 @@ def stressTestMembrane(camera, port, frequency=600):
         if currentSignal == pTwo and time.clock() > 14400:
             currentSignal = pThree
         cThree += 1
-        print cThree
+        print(cThree)
         display.sendSignal(currentSignal)
         time.sleep(2)
         display.sendSignal(pZero)

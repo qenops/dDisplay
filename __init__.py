@@ -166,12 +166,12 @@ def generateUVluts(displayMaps):
         image = np.dstack((displayMap[1],displayMap[0],np.zeros_like(displayMap[0])))
         image[np.isnan(image)] = 0.
         images.append(image)
-    print 'X range is: %s through %s'%(math.degrees(gXmin),math.degrees(gXmax))
-    print 'Y range is: %s through %s'%(math.degrees(gYmin),math.degrees(gYmax))
+    print('X range is: %s through %s'%(math.degrees(gXmin),math.degrees(gXmax)))
+    print('Y range is: %s through %s'%(math.degrees(gYmin),math.degrees(gYmax)))
     size = displayMaps[0].shape
-    print size
+    print(size)
     angleMap = np.mgrid[0:size[1],0:size[2]].astype(np.float32)
-    print angleMap.shape
+    print(angleMap.shape)
     angleMap[0] /= size[1]-1.0
     angleMap[0] *= xsize
     angleMap[0] += gXmin

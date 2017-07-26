@@ -87,3 +87,4 @@ ENV/
 
 # Rope project settings
 .ropeproject
+/.vs/dDisplay/v14/.suo
