@@ -8,7 +8,7 @@ def update(dummy=None):
     params.maxThreshold = cv2.getTrackbarPos('Max Threshold', 'Blob Detector')
     params.thresholdStep = cv2.getTrackbarPos('Threshold Step', 'Blob Detector')
     params.minDistBetweenBlobs = cv2.getTrackbarPos('Min Distance', 'Blob Detector')
-    params.minRepeatability = long(cv2.getTrackbarPos('Min Repeatability', 'Blob Detector'))
+    params.minRepeatability = int(cv2.getTrackbarPos('Min Repeatability', 'Blob Detector'))
     params.filterByArea = cv2.getTrackbarPos('Area', 'Blob Detector')
     params.minArea = max(cv2.getTrackbarPos('Min Area', 'Blob Detector'),1)
     params.maxArea = cv2.getTrackbarPos('Max Area', 'Blob Detector')
@@ -56,7 +56,7 @@ def blobDetectorParameterTune(image):
         if ch == 27 or ch == -1:
             break
         params = update()
-        detector = cv2.SimpleBlobDetector(params) 
+        detector = cv2.SimpleBlobDetector_create(params) 
         frame = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
         # inverse the image
         frame2 = np.invert(frame)
