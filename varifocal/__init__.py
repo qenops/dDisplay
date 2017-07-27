@@ -18,7 +18,7 @@ class VarifocalDisplay(object):
             self.arduino = serial.Serial(port, baud)
         except:
             print('FATAL ERROR: Cannot connect to Adruino => will simulate.')
-            self.adruino = None
+            self.arduino = None
         self.epsilon = 15
         dist = (-1, 0, 50,250,1000,1500) if dist is None else dist
         self.solenoids = True if signal is None else False
@@ -102,11 +102,13 @@ class VarifocalDisplay(object):
         self.sendSignal(-mseconds)
     def sendSignal(self, signal):
         self.lastSignal = signal
-        self.arduino.write('%s\n'%self.lastSignal)
+        if self.arduino:
+            self.arduino.write('%s\n'%self.lastSignal)
         #print "Sending %s"%self.lastSignal
     def close(self):
         self.decreaseDepth(1000)
-        self.arduino.close()
+        if self.arduino:
+            self.arduino.close()
         if self.led:
             self.ledCam.close()
     def tuneLED(self):
