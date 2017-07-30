@@ -16,8 +16,9 @@ class VarifocalDisplay(object):
         self.lastSignal = 0
         try:
             self.arduino = serial.Serial(port, baud)
+            #print('Connected port %s'%port)
         except:
-            print('FATAL ERROR: Cannot connect to Adruino => will simulate.')
+            #print('FATAL ERROR: Cannot connect to Adruino => will simulate.')
             self.arduino = None
         self.epsilon = 15
         dist = (-1, 0, 50,250,1000,1500) if dist is None else dist
@@ -103,7 +104,7 @@ class VarifocalDisplay(object):
     def sendSignal(self, signal):
         self.lastSignal = signal
         if self.arduino:
-            self.arduino.write('%s\n'%self.lastSignal)
+            self.arduino.write(('%s\n'%self.lastSignal).encode('ascii'))
         #print "Sending %s"%self.lastSignal
     def close(self):
         self.decreaseDepth(1000)
@@ -330,6 +331,42 @@ def stressTestMembrane(camera, port, frequency=600):
         time.sleep(2)
         display.sendSignal(pZero)
         time.sleep(2)
+
+class VarifocalStereoDisplay(object):
+    def __init__(self,right={},left={},**kwargs):
+        self.currentDepth = 0
+        self.goalDepth = 0
+        self.lastSignal = 0
+        port = '/dev/ttyACM0' if 'port' not in right else right['port']
+        baud = 115200 if 'baud' not in right else right['baud']
+        try:
+            self.arduino = serial.Serial(port, baud)
+            #print('Connected port %s'%port)
+        except:
+            print('FATAL ERROR: Cannot connect to Adruino => will simulate.')
+            self.arduino = None
+        for eye in [right,left]:
+            eye['port'] = port
+            eye['baud'] = baud
+        self.right = VarifocalDisplay(**right)
+        self.left = VarifocalDisplay(**left)
+    def sendSignal(self, signal):
+        print('Sending signal %s'%signal)
+        self.lastSignal = signal
+        self.right.sendSignal(signal)
+        if self.arduino:
+            self.arduino.write(('%s\n'%self.right.lastSignal).encode('ascii'))
+        self.left.sendSignal(signal)
+        if self.arduino:
+            self.arduino.write(('%s\n'%-self.left.lastSignal).encode('ascii'))
+    def close(self):
+        self.sendSignal(0)
+        self.right.close()
+        self.left.close()
+        if self.arduino:
+            self.arduino.close()
+    
+    
 
 
 '''
