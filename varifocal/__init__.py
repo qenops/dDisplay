@@ -1,19 +1,15 @@
 ﻿
-import cv2, sys
+import sys
 sys.path.append(r'../python')
 import numpy as np
 import serial
-import dCamera as dc
 from scipy.interpolate import interp1d, interp2d
 import time, random
-import dDisplay.blobDetectorParameters as blob
+#import dDisplay.blobDetectorParameters as blob
 
 class VarifocalDisplay(object):
     ''' An object to control a varifocal display '''
-    def __init__(self,port='/dev/ttyACM0',baud=9600,led=True,camera=0,dist=None,signal=None,ledX=None,ledY=None,bounds=(0,1000,0,1000),minArea=15,maxArea=150,minThreshold=0,maxThreshold=150,thresholdStep=7,minDistance=10,**kwargs):
-        self.currentDepth = 0
-        self.goalDepth = 0
-        self.lastSignal = 0
+    def __init__(self,port='/dev/ttyACM0',baud=115200,dist=None,signals=None,**kwargs):
         try:
             print('trying port %s and baud %s'%(port, baud))
             self.arduino = serial.Serial(port, baud)
@@ -21,186 +17,49 @@ class VarifocalDisplay(object):
         except:
             print('FATAL ERROR: Cannot connect to Adruino => will simulate.')
             self.arduino = None
-        self.epsilon = 15
+        self.currentDepths = [0,0]
+        self.goalDepth = 0
+        self.lastSignals = [0,0]
+        self.signs = (-1,1)
         dist = (-1, 0, 50,250,1000,1500) if dist is None else dist
-        self.solenoids = True if signal is None else False
-        if signal is not None:
-            #signal = (0,0,195,230, 250, 300) if signal is None else signal
-            self.signalMap = interp1d(dist,signal)
-        self.led = led
-        if self.led:
-            self.ledCam = dc.Camera(camera,0)
-            self.ledCam.open()
-            self.cameraID = camera
-            ledX = (450,382,300,281,226,200) if ledX is None else ledX
-            ledY = (100,134,223,247,333,400) if ledY is None else ledY
-            self.ledMap = interp2d(ledX, ledY, dist)
-            self.ledNoise = np.array((.8,1.)) # Highest measured: [1.974945068359375, 2.407806396484375]
-        self.bounds = bounds
-        self.minArea = minArea
-        self.maxArea = maxArea
-        self.minThreshold = minThreshold
-        self.maxThreshold = maxThreshold
-        self.thresholdStep = thresholdStep
-        self.minDistance = minDistance
-        self.coord = np.array((0.,0.))
+        signals = ((0,0,2400,2600,2700,2800),(0,0,2400,2600,2700,2800)) if signals is None else signals
+        self.signalMaps = (interp1d(dist,signals[0]),interp1d(dist,signals[1]))
+        self.depthMaps = (interp1d(signals[0],dist),interp1d(signals[1],dist))
     def getFocus(self):
-        self.readLED()
-        return self.currentDepth
-    def readLED(self):
-        coord, frame = trackLED(self.ledCam,minArea=self.minArea,maxArea=self.maxArea,bounds=self.bounds,minThreshold=self.minThreshold,maxThreshold=self.maxThreshold,thresholdStep=self.thresholdStep,minDistance=self.minDistance)
-        if coord == []:
-            return False
-        self.coord = np.array(coord[0])
-        self.currentDepth = self.ledMap(*coord[0])[0]
-        #print "Current Depth: %s"%self.currentDepth, coord 
-        return True
+        if self.arduino:
+            bytesToRead = self.arduino.inWaiting()
+            while (bytesToRead > 15):
+                self.arduino.read(bytesToRead)           # Throw away everything in buffer - is this good? will we miss a signal?
+                bytesToRead = self.arduino.inWaiting()
+            data = [int(self.arduino.readline())]
+            data.append(int(self.arduino.readline()))
+            for i in data:
+                if i < -9000: # left eye op code
+                    pass
+                elif i > 9000: # right eye op code
+                    pass
+                elif i < 0: # left eye depth signal
+                    self.currentDepths[0] = self.depthMaps[0](i*-1)
+                elif i > 0: # right eye depth signal
+                    self.currentDepths[1] = self.depthMaps[1](i)
+        return self.currentDepths
     # @param focus - focus depth in cm.
     # @param speed - speed of refocus in diopters/second. [speed <= 0] => maximum speed.
     def setFocus(self,focus):
         print("Setting display depth to %s"%focus)
-        self.goalDepth = focus 
-    def updateState(self,focus=None):
-        '''read current state and send signal to control the display for the desired depth '''
-        if not(focus is None or focus == self.goalDepth):
-            self.setFocus(focus)
-        if self.solenoids:
-            self.readLED()
-            self.epsilon = self.goalDepth * .1
-            #if self.epsilon < 15:
-            #    self.epislon = 15
-            if self.currentDepth < (self.goalDepth - self.epsilon):
-                print('+%s'%(self.goalDepth-self.currentDepth))
-                self.increaseDepth(self.goalDepth-self.currentDepth)
-            elif self.currentDepth > (self.goalDepth + self.epsilon):
-                print('-%s'%(self.currentDepth-self.goalDepth))
-                self.decreaseDepth(self.currentDepth-self.goalDepth)
-            #else:
-            #    self.arduino.write('%s/n'%self.closeSignal)
-        else:
-            newSignal = self.signalMap(self.goalDepth)
-            if self.lastSignal != newSignal:
-                self.sendSignal(newSignal)
-                self.lastSignal = newSignal
-            if self.led:
-                self.readLED()
-            else:
-                self.currentDepth = self.goalDepth
-            time.sleep(.3)
-        return self.currentDepth
-    def increaseDepth(self, dist, period=False):
-        if period:
-            mseconds = dist
-        else:
-            mseconds = 0.07368421*dist + 9.8
-        mseconds = max(mseconds, 0.)
-        self.sendSignal(mseconds)
-    def decreaseDepth(self, dist, period=False):
-        if period:
-            mseconds = dist
-        else:
-            mseconds = 0.7368421*dist + 9.8
-        seconds = max(mseconds, 0.)
-        self.sendSignal(-mseconds)
+        self.goalDepth = focus
+        self.lastSignals = [self.signalMaps[i](focus) * self.signs[i] for i in range(2)]
+        for signal in self.lastSignals:
+            self.sendSignal(signal)
     def sendSignal(self, signal):
         self.lastSignal = signal
         if self.arduino:
             self.arduino.write(('%s\n'%self.lastSignal).encode('ascii'))
         #print "Sending %s"%self.lastSignal
     def close(self):
-        self.decreaseDepth(1000)
+        self.sendSignal(0)
         if self.arduino:
             self.arduino.close()
-        if self.led:
-            self.ledCam.close()
-    def tuneLED(self):
-        blob.setup(minArea=self.minArea, maxArea=self.maxArea,minThreshold=self.minThreshold,maxThreshold=self.maxThreshold)
-        capture = False
-        #frames = []
-        noise = [0.,0.]
-        prev = [0.,0.]
-        count = 0
-        while(True):
-            params = blob.update()
-            coord, frame = trackLED(self.ledCam,params=params,bounds=self.bounds)
-            coord = [(0.,0.)] if coord == [] else coord
-            cv2.imshow('tracking',frame)
-            if capture:
-                video.write(frame)
-            self.currentDepth = self.ledMap(*coord[0])[0]
-            #print self.currentDepth, coord[0]
-            count += 1
-            if count == 30:
-                prev = coord[0]
-            elif count > 30:
-                noise[0] = max(noise[0], abs(prev[0]-coord[0][0]))
-                noise[1] = max(noise[1], abs(prev[1]-coord[0][1]))
-            ch = cv2.waitKey(100)
-            if ch & 0xFF == 27:         # escape
-                break
-            elif ch == 1113938:         # Upkey
-                self.increaseDepth(5)
-                count = 0
-            elif ch == 1113940:         # DownKey
-                self.decreaseDepth(5)
-                count = 0
-            elif ch == 1113937:         # left
-                self.decreaseDepth(20)
-                count = 0
-            elif ch == 1113939:         # right
-                self.increaseDepth(20)
-                count = 0
-            elif ch & 0xFF == 32:              # space bar
-                capture = not capture
-                if capture:
-                    video = cv2.VideoWriter('temp.avi',-1,self.ledCam.fps,self.ledCam.resolution)
-                    print("RECORDING")
-                else:
-                    video.release()
-                    print("END RECORDING")
-            elif ch == 1048695:         # w
-                self.increaseDepth(50)
-                count = 0
-            elif ch == 1048691:         # s
-                self.decreaseDepth(50)
-                count = 0
-            elif ch == 1048673:         # a
-                self.increaseDepth(500)
-                count = 0
-            elif ch == 1048676:         # d  
-                self.decreaseDepth(500)  
-                count = 0
-            elif ch == 1048688:         # p
-                print(self.currentDepth, coord[0])
-        dc.cv2CloseWindow('tracking')
-        dc.cv2CloseWindow('Blob Detector')
-        print('Noise floor = %s'%noise)
-        #self.ledCam.close()
-    def getData(self,loops):
-        data = np.zeros((loops,5),np.float)
-        
-        for i in range(loops):
-            #self.sendSignal(self.ventSignal)
-            #time.sleep(2)
-            #self.sendSignal(self.ventCloseSignal)
-            self.decreaseDepth(decrease)
-            time.sleep(1)
-            seconds = random.random()/5.
-            a,t,clean = self.measureLatency(24,seconds)
-            s = np.argmin(a)
-            e = np.argmax(a[s:])
-            if clean:
-                data[i,:] = (seconds,a[s],a[e],t[s],t[e])
-                decrease = 1000
-            else:
-                decrease = 3000
-        #mask = np.invert(np.any(data < 0,axis=1))
-        mask = np.any(data!=0,axis=1)
-        #return data[mask,:]
-        return data
-        # If you wanted to know how to do math on the arrays:
-        #ready = data.copy()
-        #ready[:,2] = data[:,2] - data[:,0]
     def measureLatency(self,loops):
         func = [self.increaseDepth,self.decreaseDepth]
         frameCount = 0
@@ -334,6 +193,7 @@ def stressTestMembrane(camera, port, frequency=600):
         time.sleep(2)
 
 class VarifocalStereoDisplay(object):
+    ''' If using two separate arduinos to control the display '''
     def __init__(self,right={},left={},**kwargs):
         self.currentDepth = 0
         self.goalDepth = 0

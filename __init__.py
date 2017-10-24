@@ -3,9 +3,9 @@
 __author__ = ('David Dunn')
 __version__ = '0.1'
 
-import cv2, math
+import math
 import numpy as np
-import dCamera as dc
+#import dCamera as dc
 from scipy.interpolate import griddata
 from scipy.signal import medfilt
 #from scipy.misc import imsave
