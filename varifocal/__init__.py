@@ -25,6 +25,12 @@ class VarifocalDisplay(object):
         signals = ((0,0,2400,2600,2700,2800),(0,0,2400,2600,2700,2800)) if signals is None else signals
         self.signalMaps = (interp1d(dist,signals[0]),interp1d(dist,signals[1]))
         self.depthMaps = (interp1d(signals[0],dist),interp1d(signals[1],dist))
+        self.recordSignals = [[],[]]
+        self.recording = False
+    def startRecording(self):
+        self.recording = True
+    def stopRecording(self):
+        self.recording = False
     def getFocus(self):
         if self.arduino:
             bytesToRead = self.arduino.inWaiting()
@@ -40,8 +46,12 @@ class VarifocalDisplay(object):
                     pass
                 elif i < 0: # left eye depth signal
                     self.currentDepths[0] = self.depthMaps[0](i*-1)
+                    if self.recording:
+                        self.recordSignals[0].append((time.time(),-i))
                 elif i > 0: # right eye depth signal
                     self.currentDepths[1] = self.depthMaps[1](i)
+                    if self.recording:
+                        self.recordSignals[1].append((time.time(),i))
         return self.currentDepths
     # @param focus - focus depth in cm.
     # @param speed - speed of refocus in diopters/second. [speed <= 0] => maximum speed.
